@@ -1,3 +1,4 @@
+/*jslint node, indent: 4, maxlen: 180 */
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
@@ -19,80 +20,134 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
+    due_date TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )
 `);
 
 // Insert some initial data
-const initialItems = ['Item 1', 'Item 2', 'Item 3'];
-const insertStmt = db.prepare('INSERT INTO items (name) VALUES (?)');
+const initialItems = [
+    { name: 'Item 1', due_date: null },
+    { name: 'Item 2', due_date: null },
+    { name: 'Item 3', due_date: null }
+];
+const insertStmt = db.prepare('INSERT INTO items (name, due_date) VALUES (?, ?)');
 
-initialItems.forEach(item => {
-  insertStmt.run(item);
+initialItems.forEach(function (item) {
+    insertStmt.run(item.name, item.due_date);
 });
 
 console.log('In-memory database initialized with sample data');
 
 // Health check endpoint
-app.get('/', (req, res) => {
-  res.status(200).json({ status: 'ok', message: 'Backend server is running' });
+app.get('/', function (req, res) {
+    res.status(200).json({ status: 'ok', message: 'Backend server is running' });
 });
 
 // API Routes
-app.get('/api/items', (req, res) => {
-  try {
-    const items = db.prepare('SELECT * FROM items ORDER BY created_at DESC').all();
-    res.json(items);
-  } catch (error) {
-    console.error('Error fetching items:', error);
-    res.status(500).json({ error: 'Failed to fetch items' });
-  }
+
+/**
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @returns {void}
+ */
+app.get('/api/items', function (req, res) {
+    try {
+        const { sort } = req.query;
+        const query = sort === 'due_date'
+            ? 'SELECT * FROM items ORDER BY CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date ASC, created_at DESC'
+            : 'SELECT * FROM items ORDER BY created_at DESC';
+        const items = db.prepare(query).all();
+        res.json(items);
+    } catch (error) {
+        console.error('Error fetching items:', error);
+        res.status(500).json({ error: 'Failed to fetch items' });
+    }
 });
 
-app.post('/api/items', (req, res) => {
-  try {
-    const { name } = req.body;
+/**
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @returns {void}
+ */
+app.post('/api/items', function (req, res) {
+    try {
+        const { name, due_date } = req.body;
 
-    if (!name || typeof name !== 'string' || name.trim() === '') {
-      return res.status(400).json({ error: 'Item name is required' });
+        if (!name || typeof name !== 'string' || name.trim() === '') {
+            return res.status(400).json({ error: 'Item name is required' });
+        }
+
+        const result = insertStmt.run(name.trim(), due_date || null);
+        const newItem = db.prepare('SELECT * FROM items WHERE id = ?').get(result.lastInsertRowid);
+        res.status(201).json(newItem);
+    } catch (error) {
+        console.error('Error creating item:', error);
+        res.status(500).json({ error: 'Failed to create item' });
     }
-
-    const result = insertStmt.run(name);
-    const id = result.lastInsertRowid;
-
-    const newItem = db.prepare('SELECT * FROM items WHERE id = ?').get(id);
-    res.status(201).json(newItem);
-  } catch (error) {
-    console.error('Error creating item:', error);
-    res.status(500).json({ error: 'Failed to create item' });
-  }
 });
 
-app.delete('/api/items/:id', (req, res) => {
-  try {
-    const { id } = req.params;
+/**
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @returns {void}
+ */
+app.put('/api/items/:id', function (req, res) {
+    try {
+        const { id } = req.params;
+        const { name, due_date } = req.body;
 
-    if (!id || isNaN(parseInt(id))) {
-      return res.status(400).json({ error: 'Valid item ID is required' });
+        if (!id || isNaN(parseInt(id))) {
+            return res.status(400).json({ error: 'Valid item ID is required' });
+        }
+
+        if (!name || typeof name !== 'string' || name.trim() === '') {
+            return res.status(400).json({ error: 'Item name is required' });
+        }
+
+        const existingItem = db.prepare('SELECT * FROM items WHERE id = ?').get(id);
+        if (!existingItem) {
+            return res.status(404).json({ error: 'Item not found' });
+        }
+
+        db.prepare('UPDATE items SET name = ?, due_date = ? WHERE id = ?').run(name.trim(), due_date || null, id);
+        const updatedItem = db.prepare('SELECT * FROM items WHERE id = ?').get(id);
+        res.json(updatedItem);
+    } catch (error) {
+        console.error('Error updating item:', error);
+        res.status(500).json({ error: 'Failed to update item' });
     }
+});
 
-    const existingItem = db.prepare('SELECT * FROM items WHERE id = ?').get(id);
-    if (!existingItem) {
-      return res.status(404).json({ error: 'Item not found' });
+/**
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @returns {void}
+ */
+app.delete('/api/items/:id', function (req, res) {
+    try {
+        const { id } = req.params;
+
+        if (!id || isNaN(parseInt(id))) {
+            return res.status(400).json({ error: 'Valid item ID is required' });
+        }
+
+        const existingItem = db.prepare('SELECT * FROM items WHERE id = ?').get(id);
+        if (!existingItem) {
+            return res.status(404).json({ error: 'Item not found' });
+        }
+
+        const result = db.prepare('DELETE FROM items WHERE id = ?').run(id);
+
+        if (result.changes > 0) {
+            res.json({ message: 'Item deleted successfully', id: parseInt(id) });
+        } else {
+            res.status(404).json({ error: 'Item not found' });
+        }
+    } catch (error) {
+        console.error('Error deleting item:', error);
+        res.status(500).json({ error: 'Failed to delete item' });
     }
-
-    const deleteStmt = db.prepare('DELETE FROM items WHERE id = ?');
-    const result = deleteStmt.run(id);
-
-    if (result.changes > 0) {
-      res.json({ message: 'Item deleted successfully', id: parseInt(id) });
-    } else {
-      res.status(404).json({ error: 'Item not found' });
-    }
-  } catch (error) {
-    console.error('Error deleting item:', error);
-    res.status(500).json({ error: 'Failed to delete item' });
-  }
 });
 
 module.exports = { app, db, insertStmt };
