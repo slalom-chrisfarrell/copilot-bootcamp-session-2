@@ -42,17 +42,13 @@ afterAll(() => server.close());
 
 describe("App Component", () => {
     test("renders the app header", async () => {
-        await act(async () => {
-            render(<App />);
-        });
+        render(<App />);
         expect(screen.getByRole("heading", { name: /to do app/i })).toBeInTheDocument();
         expect(screen.getByText(/keep track of your tasks/i)).toBeInTheDocument();
     });
 
     test("loads and displays items from the API", async () => {
-        await act(async () => {
-            render(<App />);
-        });
+        render(<App />);
 
         expect(screen.getByRole("progressbar")).toBeInTheDocument();
 
@@ -63,9 +59,7 @@ describe("App Component", () => {
     });
 
     test("displays due date for items that have one", async () => {
-        await act(async () => {
-            render(<App />);
-        });
+        render(<App />);
 
         await waitFor(() => {
             expect(screen.getByText(/due: 2026-06-01/i)).toBeInTheDocument();
@@ -75,9 +69,7 @@ describe("App Component", () => {
     test("adds a new task", async () => {
         const user = userEvent.setup();
 
-        await act(async () => {
-            render(<App />);
-        });
+        render(<App />);
 
         await waitFor(() => expect(screen.queryByRole("progressbar")).not.toBeInTheDocument());
 
@@ -85,6 +77,7 @@ describe("App Component", () => {
         await user.type(nameInput, "New Test Task");
 
         const submitButton = screen.getByRole("button", { name: /add task/i });
+        
         await act(async () => {
             await user.click(submitButton);
         });
@@ -97,9 +90,7 @@ describe("App Component", () => {
     test("enters edit mode and saves an updated task", async () => {
         const user = userEvent.setup();
 
-        await act(async () => {
-            render(<App />);
-        });
+        render(<App />);
 
         await waitFor(() => expect(screen.getByText("Test Item 1")).toBeInTheDocument());
 
@@ -125,9 +116,7 @@ describe("App Component", () => {
     test("cancels edit mode without saving", async () => {
         const user = userEvent.setup();
 
-        await act(async () => {
-            render(<App />);
-        });
+        render(<App />);
 
         await waitFor(() => expect(screen.getByText("Test Item 1")).toBeInTheDocument());
 
@@ -148,9 +137,7 @@ describe("App Component", () => {
     test("deletes a task", async () => {
         const user = userEvent.setup();
 
-        await act(async () => {
-            render(<App />);
-        });
+        render(<App />);
 
         await waitFor(() => expect(screen.getByText("Test Item 1")).toBeInTheDocument());
 
@@ -177,9 +164,7 @@ describe("App Component", () => {
             })
         );
 
-        await act(async () => {
-            render(<App />);
-        });
+        render(<App />);
 
         await waitFor(() => expect(screen.queryByRole("progressbar")).not.toBeInTheDocument());
 
@@ -200,9 +185,7 @@ describe("App Component", () => {
             })
         );
 
-        await act(async () => {
-            render(<App />);
-        });
+        render(<App />);
 
         await waitFor(() => {
             expect(screen.getByRole("alert")).toBeInTheDocument();
@@ -217,9 +200,7 @@ describe("App Component", () => {
             })
         );
 
-        await act(async () => {
-            render(<App />);
-        });
+        render(<App />);
 
         await waitFor(() => {
             expect(screen.getByText(/no tasks found/i)).toBeInTheDocument();
